@@ -26,6 +26,7 @@ class BookingController extends Controller
     public $booking_num =  'booking_number';
     public $guest_email =  'guest_email';
     public $main_door =  'main_door';
+    public $role =  'role';
     
     public $meeting_start_get;
     public $meeting_end_get;
@@ -411,32 +412,43 @@ class BookingController extends Controller
         $timeNow->tz = new \DateTimeZone('Asia/Bangkok');
 
         if( is_null($request->get($this->booking_num)) ||  is_null($request->get($this->guest_email)) ){
-            return response()->json(['Status' => 'fail', 'Message' => 'some value might be null'], 400);
+            return response()->json(['Status' => 'fail',
+                                     'Message' => 'some value might be null',
+                                     'Value' => ""], 400);
         }
-
-        $userTable = User::where($this->one_email , '=', $request->get($this->guest_email))->first();
-        if($userTable == null){
-            return response()->json(['Status' => 'fail', 'Message' => 'guest email is invalid'], 400);
-        }
+    
 
         $bookingTable = Booking::where($this->booking_num , '=', $request->get($this->booking_num))
                                 ->where($this->meeting_time_end, '>', $timeNow)
                                 ->where($this->eject , '=', null)
                                 ->first();
+
         if($bookingTable == null){
-            return response()->json(['Status' => 'fail', 'Message' => 'booking number is invalid'], 400);
+            return response()->json(['Status' => 'fail',
+                                    'Message' => 'booking number is invalid',
+                                    'Value' => ""], 400);
         }
 
         if($select == 'insert'){
             try{
-                $guests = $request->get($this->guest_email);
-                foreach($guests as $g){
+                $get_guests = $request->get($this->guest_email);
+                foreach($get_guests as $g){
+                    $userTable = User::where($this->one_email , '=', $g)->first();
+                    if($userTable == null){
+                        return response()->json(['Status' => 'fail', 
+                                                'Message' => 'guest email is invalid',
+                                                'Value' => ""], 400);
+                    }
                     $guests = Guest::where($this->booking_num , '=', $request->get($this->booking_num))
                                 ->where($this->guest_email , '=', $g)
                                 ->get();
+                    
+                    $booking = Booking::where($this->booking_num , '=', $request->get($this->booking_num))
+                                        ->where($this->one_email , '=', $g)
+                                        ->get();
 
                     //if guest dosn't exit then add
-                    if(count($guests) == 0){
+                    if( (count($guests) == 0) && (count($booking) == 0) ){
                         $guest = new Guest();
                         $guest->booking_number = $request->get($this->booking_num);
                         $guest->guest_email = $g;
@@ -450,16 +462,31 @@ class BookingController extends Controller
                                 ],400);
             }
         }else if($select == 'delete'){
-            $guests = Guest::where($this->booking_num , '=', $request->get($this->booking_num))
-                            ->where($this->guest_email , '=', $request->get($this->guest_email));
-        
-            if(count($guests->get()) == 0){
+            try{
+                $get_guests = $request->get($this->guest_email);
+                $userTable = User::where($this->one_email , '=', $get_guests)->first();
+                if($userTable == null){
+                    return response()->json(['Status' => 'fail', 
+                                            'Message' => 'guest email is invalid',
+                                            'Value' => ""], 400);
+                }
+
+                $guests = Guest::where($this->booking_num , '=', $request->get($this->booking_num))
+                                ->where($this->guest_email , '=', $request->get($this->guest_email));
+            
+                if(count($guests->get()) == 0){
+                    return response()->json(['Status' => 'fail',
+                                    'Message' => 'do not found record',
+                                    'Value' => ""
+                                    ],400);
+                }
+                $guests->delete();
+            }catch(\Exception $ex){
                 return response()->json(['Status' => 'fail',
-                                 'Message' => 'do not found record',
+                                 'Message' => 'bad request',
                                  'Value' => ""
                                 ],400);
             }
-            $guests->delete();
         }else{
             return response()->json(['Status' => 'fail',
                                 'Message' => 'page not found',
@@ -477,8 +504,12 @@ class BookingController extends Controller
         $timeNow = Carbon::now();
         $timeNow->tz = new \DateTimeZone('Asia/Bangkok');
         $data[] = [
-            "name" => "number of server deployed",
-            "value" => 4
+            "name" => "http host name",
+            "value" => \Request::getHttpHost(),
+        ];
+        $data[] = [
+            "name" => "http user agent",
+            "value" => \Request::server('HTTP_USER_AGENT'),
         ];
         $data[] = [
             "name" => "db host",
@@ -489,21 +520,26 @@ class BookingController extends Controller
             "value" => $timeNow->isoFormat('dddd D-MM-YYYY HH:mm:ss')
         ];
         return response()->json(['Status' => 'success',
-                                 'Message' => "this is test api",
+                                 'Message' => "this is test api 03/03/2021",
                                  'Value' => $data
                                 ],200);
     }
 
     public function availableStat($day = null){
-
-        $booking_data_json = [];
-        $room_data_json = [];
+        $time_day_data = [];
+        $time_room_data = [];
+        $time_room_month_data = [];
         $timeNow = Carbon::now();
         $timeNow->tz = new \DateTimeZone('Asia/Bangkok');
         $green = new \DateTime('04:00');
-        $red = new \DateTime('22:00');
+        $red = new \DateTime('10:00');
+        $ref = new \DateTime('00:00'); 
+        $total_month_time = new \DateTime('00:00');
         
         $roomsTable = Room::where($this->main_door, '=', null)->get();
+        foreach($roomsTable as $room){
+            $tot_time_month[$room->room_num] = new \DateTime('00:00');
+        }
         
         if(is_null($day)){
             $start = Carbon::create(Carbon::parse($timeNow)->year, Carbon::parse($timeNow)->month, 1, 0, 0, 0, 'Asia/Bangkok');
@@ -519,9 +555,8 @@ class BookingController extends Controller
         }
         
         while($start < $end){
-            foreach($roomsTable as $room){
-                $ref = new \DateTime('00:00');  
-                $total_time = new \DateTime('00:00');
+            foreach($roomsTable as $room){ 
+                $total_day_time = new \DateTime('00:00');
 
                 $bookingTable = Booking::where($this->meeting_time_start, '>=', $start)
                                         ->where($this->meeting_time_end, '<=', $tmr)
@@ -534,96 +569,153 @@ class BookingController extends Controller
                     $meeting_start = Carbon::createFromFormat('Y-m-d H:i:s',  $booking->meeting_start);
                     $meeting_end = Carbon::createFromFormat('Y-m-d H:i:s',  $booking->meeting_end);
                     $interval = $meeting_start->diff($meeting_end);
-                    $total_time->add($interval);
+                    $total_day_time->add($interval);
+                    $total_month_time->add($interval);
+                    $tot_time_month[$room->room_num] = $tot_time_month[$room->room_num]->add($interval);
                 }
 
-                $total_compare_time = new \DateTime($ref->diff($total_time)->format("%H:%I"));
+                $total_compare_time = new \DateTime($ref->diff($total_day_time)->format("%H:%I"));
+                $status_all = "red";
                 if($total_compare_time <= $green){
                     $status = 'green';
+                    $status_all = "green";
                 }else if(($total_compare_time > $green) && ($total_compare_time < $red)){
                     $status = 'orange';
+                    $status_all = "green";
                 }else if($total_compare_time >= $red){
                     $status = 'red';
                 }else{
                     $status = 'undefined';
+                    $status_all = "green";
                 }
                 
-                $room_data_json[] = [
+                $time_room_data[] = [
                     "room" => $room->room_num,
-                    "time" => $ref->diff($total_time)->format("%H:%I"),
+                    "time" => $ref->diff($total_day_time)->format("%H:%I"),
                     "status" => $status,
                 ];
+
             }
 
-            $booking_data_json[] = [
+            $time_day_data[] = [
                 "day" => Carbon::parse($start)->day,
-                "booking_sum_time" => $room_data_json,
+                "status_all" => $status_all,
+                "booking_sum_time" => $time_room_data,
             ];
 
-            $room_data_json = [];
+            $time_room_data = [];
             $tmr->adddays(1);
             $start->adddays(1);
         }
-
-        return response()->json(['Status' => 'success', 'Message' => "", 'Value' => $booking_data_json], 200);
-    }
-
-    public function nowMeetingTable($room_num = null){
-        $booking_data_json = [];
-        $timeNow = Carbon::now();
-        $timeNow->tz = new \DateTimeZone('Asia/Bangkok');
-
-        if(is_null($room_num)){
-            $bookingTable = Booking::where($this->meeting_time_start, '<=', $timeNow)
-                                    ->where($this->meeting_time_end, '>', $timeNow)
-                                    ->Where($this->eject , '=',  null)
-                                    ->get();
-        }else{
-            $rooms = Room::where($this->room_num, '=', $room_num)->first();
-            if(is_null($rooms)){
-                return response()->json([ 'Status' => 'fail',
-                                          'Message' => 'room number is invalid'
-                                        ], 404);
-            }
-            $bookingTable = Booking::join('rooms', 'bookings.room_num', '=', 'rooms.room_num')
-                                    ->where('bookings.'.$this->room_num, '=', $room_num)
-                                    ->where($this->meeting_time_start, '<=', $timeNow)
-                                    ->where($this->meeting_time_end, '>', $timeNow)
-                                    ->Where($this->eject , '=',  null)
-                                    ->get();
-        }
-        
-        foreach($bookingTable as $booking){
-            $guests_arr = array();
-            $guests = Guest::where($this->booking_num , '=', $booking->booking_number)->get();
-            foreach($guests as $g){
-                array_push($guests_arr, $g->guest_email);
-            }
-
-            if(Carbon::parse($booking->meeting_start)->day < 10){
-                $day = "0" . Carbon::parse($booking->meeting_start)->day;
-            }else{
-                $day = "" . Carbon::parse($booking->meeting_start)->day;
-            }
-
-            $booking_data_json[] = [
-                "booking_number" => $booking->booking_number,
-                "one_email" => $booking->one_email,
-                "guest_email" => $guests_arr,
-                "room_num" => $booking->room_num,
-                "agenda" => $booking->agenda,
-                "meeting_start" => $booking->meeting_start,
-                "meeting_start_day" => $day,
-                "meeting_end" => $booking->meeting_end,
-                // "created_at" => $booking->created_at,
-                "eject_at" => $booking->eject_at
+        foreach($tot_time_month as $key => $item){
+            $days = (int)$ref->diff($item)->format("%D");
+            $hours = (int)$ref->diff($item)->format("%H");
+            $minutes = (int)$ref->diff($item)->format("%I");
+            $hours = $hours + ($days * 24);
+            $time_room_month_data[] = [
+                "room" => $key,
+                "time" => $hours. " Hours ". $minutes. " Minutes",
             ];
         }
 
-        if(count($booking_data_json) == 0){
-            return response()->json([ 'Status' => 'success', 'Message' => 'no meeting right now', 'Value' => $booking_data_json], 200);
+        $days = (int)$ref->diff($total_month_time)->format("%D");
+        $hours = (int)$ref->diff($total_month_time)->format("%H");
+        $minutes = (int)$ref->diff($total_month_time)->format("%I");
+        $hours = $hours + ($days * 24);
+        
+        if($day == null){
+            return response()->json(['Status' => 'success',
+                                 'Message' => "",
+                                 'Value' => $time_day_data,
+                                 "sum_time_month" =>  $time_room_month_data,
+                                 "sum_time_month_all" => $hours. " Hours ". $minutes. " Minutes"], 200);
         }else{
-            return response()->json([ 'Status' => 'success', 'Message' => '', 'Value' => $booking_data_json], 200);
+            return response()->json(['Status' => 'success',
+                                 'Message' => "",
+                                 'Value' => $time_day_data], 200);
+        }
+    }
+
+    public function nowMeetingTable($one_email = null){
+        $now_meeting = [];
+        $timeNow = Carbon::now();
+        $timeNow->tz = new \DateTimeZone('Asia/Bangkok');
+
+        if(!is_null($one_email)){
+            $userTable = User::where($this->one_email , '=', $one_email)->first();
+            if($userTable == null){
+                return response()->json(['Status' => 'fail', 'Message' => 'email is invalid', 'Value' => ''], 400);
+            }
+
+            //get nowMeeting
+            $nowMeeting = Booking::where($this->meeting_time_start, '<=', $timeNow)
+                                    ->where($this->meeting_time_end, '>', $timeNow)
+                                    ->Where($this->eject , '=',  null)
+                                    ->get();
+            
+            //it's kinda dumb but is necessary cos one_email it's gonna be overwrite by 'any'
+            $this_one_email = $one_email;
+            $found = false;
+            foreach($nowMeeting as $bt){
+                //get booking from booking_number of nowMeeting
+                $booking = $this->bookingTable($one_email = 'any', $select = 'booking', $input = $bt->booking_number)->getData()->Value;
+                $guest_email =  $booking[0]->guest_email;
+                $book_email = $booking[0]->one_email;
+
+                //cheack booking email from booking
+                if($this_one_email == $book_email){
+                    $found = true;
+                }
+
+                //cheack guest email from booking
+                foreach($guest_email as $ge){
+                    if($this_one_email == $ge){
+                        $found = true;
+                    }
+                }
+
+                if($found == true){
+                    $access = true;
+                }else{
+                    $access = false;
+                }
+
+                $found = false;
+
+                $guests_arr = array();
+                $guests = Guest::where($this->booking_num , '=', $bt->booking_number)->get();
+                foreach($guests as $g){
+                    array_push($guests_arr, $g->guest_email);
+                }
+
+                if(Carbon::parse($bt->meeting_start)->day < 10){
+                    $day = "0" . Carbon::parse($bt->meeting_start)->day;
+                }else{
+                    $day = "" . Carbon::parse($bt->meeting_start)->day;
+                }
+                
+                $now_meeting[] = [
+                    "booking_number" => $bt->booking_number,
+                    "one_email" => $bt->one_email,
+                    "guest_email" => $guests_arr,
+                    "room_num" => $bt->room_num,
+                    "agenda" => $bt->agenda,
+                    "meeting_start" => $bt->meeting_start,
+                    "meeting_start_day" => $day,
+                    "meeting_end" => $bt->meeting_end,
+                    // "created_at" => $booking->created_at,
+                    "eject_at" => $bt->eject_at,
+                    "access" => $access
+                ];
+            }
+        }else{
+            return response()->json([ 'Status' => 'fail', 'Message' => 'email might be null', 'Value' => ''], 400);
+        }
+        
+        if(count($now_meeting) == 0){
+            return response()->json([ 'Status' => 'success', 'Message' => 'no meeting right now', 'Value' => $now_meeting], 200);
+        }else{
+            return response()->json([ 'Status' => 'success', 'Message' => '', 'Value' => $now_meeting], 200);
         }
     }
 
@@ -892,7 +984,7 @@ class BookingController extends Controller
                 }
                 return response()->json(['Status' => 'success', 'Message' => '', "Value" => $booking_data_sort_arr], 200);
             }else if($select == 'future'){
-                $guest_for_antd_table = [];
+                //guest for ant design table
                 $booking_data_future = [];
                 $bookingTable = Booking::join('users', 'bookings.one_email', '=', 'users.one_email')
                                     ->where('bookings.' .$this->one_email , '=', $one_email)
@@ -901,6 +993,7 @@ class BookingController extends Controller
                                     ->get();
                                     
                 foreach($bookingTable as $booking){
+                    $guest_for_antd_table = [];
                     $guests_mail_arr = array();
                     $guests_name_arr = array();
                     $guests = Guest::join('users', 'guests.guest_email', '=', 'users.one_email')
@@ -946,6 +1039,7 @@ class BookingController extends Controller
                         ->get();
 
                 foreach($guestTable as $gt){
+                    $guest_for_antd_table = [];
                     $guests_mail_arr = array();
                     $guests_name_arr = array();
                     $guests = Guest::join('users', 'guests.guest_email', '=', 'users.one_email')
@@ -1129,7 +1223,6 @@ class BookingController extends Controller
                     "meeting_end" => $booking->meeting_end,
                     // "created_at" => $booking->created_at,
                     "eject_at" => $booking->eject_at,
-                    "guest" => false
                 ];
                 return response()->json(['Status' => 'success', 'Message' => '', "Value" => $booking_data], 200);
             }else{
@@ -1139,7 +1232,7 @@ class BookingController extends Controller
     }
     
     public function userTable($select = null, $one_email = null){
-        
+
         if($select == 'all'){
             if(is_null($one_email)){
                 $userTable = User::all();
@@ -1275,6 +1368,12 @@ class BookingController extends Controller
             return response()->json(['Status' => 'fail', 'Message' => 'some value might be null'], 400);
         }
 
+        $rooms = Room::where($this->room_num , '=', $request->get($this->room_num))
+                    ->where($this->main_door , '=', null)
+                    ->first();
+        if($rooms == null){
+            return response()->json(['Status' => 'fail', 'Message' => 'meeting room number is invalid'], 400);
+        }
         $userTable = User::where($this->one_email , '=', $request->get($this->one_email))->first();
         if($userTable == null){
             return response()->json(['Status' => 'fail', 'Message' => 'booking email is invalid'], 400);
@@ -1284,7 +1383,7 @@ class BookingController extends Controller
             $rooms_available_arr = $this->checkAvailableRoom($request)->getData()->Value;
             $user_room_select_stat = false;
         }else{
-            return response()->json(['Status' => 'fail', 'Message' => 'room not available'], 400);
+            return response()->json(['Status' => 'fail', 'Message' => $this->checkAvailableRoom($request)->getData()->Message], 400);
         }
 
         //if guest not null
@@ -1293,6 +1392,10 @@ class BookingController extends Controller
             foreach($guests as $g){
                 if($g == $request->get($this->one_email)){
                     return response()->json(['Status' => 'fail', 'Message' => 'booking email cannot be guest'], 400);
+                }
+                $userTable = User::where($this->one_email , '=', $g)->first();
+                if($userTable == null){
+                    return response()->json(['Status' => 'fail', 'Message' => 'guest email is invalid'], 400);
                 }
             }
         }else{
@@ -1342,6 +1445,11 @@ class BookingController extends Controller
         if(is_null($booking_number) || is_null($one_email)){
             return response()->json(['Status' => 'fail', 'Message' => 'some value might be null'], 400);
         }else{
+            $userTable = User::where($this->one_email , '=', $one_email)->first();
+            if($userTable == null){
+                return response()->json(['Status' => 'fail', 'Message' => 'email is invalid'], 400);
+            }
+
             $bookingTable = Booking::where($this->booking_num , '=', $booking_number)
                                     ->where($this->one_email , '=', $one_email)    
                                     ->first();
@@ -1368,17 +1476,13 @@ class BookingController extends Controller
     }
 
     public function getProfile($user_token = null){
-        // $client = new \GuzzleHttp\Client();
-        // $request = $client->get('http://192.168.72.24:8001/api/v1/bookingTable/nitchakarn.ho@one.th/time/2021-02-10');
-        // $response = $request->getBody();
-        // dd($response->getContents());
-        
-        $bot_token = 'Bearer Af58c5450f3b45c71a97bc51c05373ecefabc49bd2cd94f3c88d5b844813e69a17e26a828c2b64ef889ef0c10e2aee347';
-        $bot_id = 'B75900943c6205ce084d1c5e8850d40f9';
+        $bot_token = 'Bearer '. env("GET_PROFILE_BOT_TOKEN");
+        $bot_id = env("GET_PROFILE_BOT_ID");
+        $api_path = env("GET_PROFILE_API");
         $client = new \GuzzleHttp\Client();
 
         try{
-            $request = $client->post('https://chat-api.one.th/manage/api/v1/getprofile',[
+            $request = $client->post($api_path,[
                 'headers' => [
                     'Authorization' => $bot_token,
                     'Content-Type' => 'application/json',
@@ -1390,12 +1494,18 @@ class BookingController extends Controller
                 ])
             ]);
             $response = json_decode($request->getBody()->getContents());
+        }catch(\GuzzleHttp\Exception\ConnectException $ex){
+            return response()->json([ 'Status' => 'fail',
+                                        'Message' => 'cannot connect to server'
+                                    ], 500);
         }catch (\Exception $ex) {
             // return response()->json(['Status' => $ex->getResponse()->getReasonPhrase()], $ex->getResponse()->getStatusCode());
             if(($ex->getResponse()->getStatusCode() == 401)){
                 $m = 'token invalid';
             }else if(($ex->getResponse()->getStatusCode() == 400)){
                 $m = 'bad request';
+            }else if(($ex->getResponse()->getStatusCode() == 404)){
+                $m = 'not found';
             }else if(($ex->getResponse()->getStatusCode() == 500)){
                 $m = 'server error';
             }else{
@@ -1405,15 +1515,31 @@ class BookingController extends Controller
                                       'Message' => $m
                                     ], $ex->getResponse()->getStatusCode());
         }
+        
         if($response->status == 'success'){
-            return response()->json(['Status' => 'success', 'Message' => '', 'Value' =>  $response->data], 200);
+            //cheack user role
+            $userTable = User::where($this->one_email , '=', $response->data->email)
+                                ->where($this->role , '=', 'admin')
+                                ->first();
+            if(is_null($userTable)){
+                $role = 'user';
+            }else{
+                $role = 'admin';
+            }
+
+            foreach($response->data as $key => $item){
+                $data[$key] =  $item;
+            }
+
+            $data['role'] = $role;
+            return response()->json(['Status' => 'success', 'Message' => '', 'Value' => $data ], 200);
         }else{
             return response()->json(['Status' => 'fail', 'Message' => 'token invalid'], 401);
         }
     }
 
     public function unlock(Request $request, $user_token = null){
-        $server = 'http://203.151.164.229:5003';
+        $server = env("UNLOCK_API");
         $client = new \GuzzleHttp\Client();
 
         if(is_null($request->get($this->room_num)) || is_null($request->get($this->one_email))){
@@ -1421,12 +1547,24 @@ class BookingController extends Controller
                                       'Message' => 'some value might be null'
                                     ], 400);
         }
+
+        $userTable = User::where($this->one_email , '=', $request->get($this->one_email))->first();
+        if($userTable == null){
+            return response()->json(['Status' => 'fail', 'Message' => 'booking email is invalid'], 404);
+        }
         
         $rooms = Room::where($this->room_num, '=', $request->get($this->room_num))->first();
         if(is_null($rooms)){
             return response()->json([ 'Status' => 'fail',
                                       'Message' => 'room number is invalid'
                                     ], 404);
+        }
+
+        //cheack token
+        if($this->getProfile($user_token = $user_token)->getStatusCode() == 401){
+            return response()->json([ 'Status' => 'fail',
+                                      'Message' => 'tokan invalid'
+                                    ], 401);
         }
 
         //check main door
@@ -1471,70 +1609,82 @@ class BookingController extends Controller
             } 
         }
 
-        $timeNow = Carbon::now();
-        $timeNow->tz = new \DateTimeZone('Asia/Bangkok');
+        $userTable = User::where($this->one_email , '=', $request->get($this->one_email))
+                            ->where($this->role , '=', 'admin')
+                            ->first();
 
-        $booking_table = Booking::join('rooms', 'bookings.room_num', '=', 'rooms.room_num')
-                                ->where($this->one_email , '=', $request->get($this->one_email))
-                                ->where('rooms.'.$this->room_num , '=', $request->get($this->room_num))
-                                ->Where($this->eject , '=',  null)
-                                ->where($this->meeting_time_start , '<=', $timeNow)
-                                ->where($this->meeting_time_end , '>', $timeNow)
-                                ->get();
+        //if this user is admin
+        if(!is_null($userTable)){
+            $guest_req = 'admin';
+        }else{
+            $timeNow = Carbon::now();
+            $timeNow->tz = new \DateTimeZone('Asia/Bangkok');
 
-        $guest_table = Guest::join('bookings', 'bookings.booking_number', '=', 'guests.booking_number')
-                                ->join('rooms', 'bookings.room_num', '=', 'rooms.room_num')
-                                ->where($this->guest_email , '=', $request->get($this->one_email))
-                                ->where('rooms.'.$this->room_num , '=', $request->get($this->room_num))
-                                ->Where($this->eject , '=',  null)
-                                ->where($this->meeting_time_start , '<=', $timeNow)
-                                ->where($this->meeting_time_end , '>', $timeNow)
-                                ->get();
+            $booking_table = Booking::join('rooms', 'bookings.room_num', '=', 'rooms.room_num')
+                                    ->where($this->one_email , '=', $request->get($this->one_email))
+                                    ->where('rooms.'.$this->room_num , '=', $request->get($this->room_num))
+                                    ->Where($this->eject , '=',  null)
+                                    ->where($this->meeting_time_start , '<=', $timeNow)
+                                    ->where($this->meeting_time_end , '>', $timeNow)
+                                    ->get();
 
+            $guest_table = Guest::join('bookings', 'bookings.booking_number', '=', 'guests.booking_number')
+                                    ->join('rooms', 'bookings.room_num', '=', 'rooms.room_num')
+                                    ->where($this->guest_email , '=', $request->get($this->one_email))
+                                    ->where('rooms.'.$this->room_num , '=', $request->get($this->room_num))
+                                    ->Where($this->eject , '=',  null)
+                                    ->where($this->meeting_time_start , '<=', $timeNow)
+                                    ->where($this->meeting_time_end , '>', $timeNow)
+                                    ->get();
 
-        if(count($booking_table) != 0 && count($guest_table) == 0){
-            $guest_req = 'no';
-        }else if(count($booking_table) == 0 && count($guest_table) != 0){
-            $guest_req = 'yes';
-        }
-        
-        if(count($booking_table) == 0 && count($guest_table) == 0){
-            return response()->json([ 'Status' => 'success', 
+            //cheack email is guest or not
+            if(count($booking_table) != 0 && count($guest_table) == 0){
+                $guest_req = 'no';
+            }else if(count($booking_table) == 0 && count($guest_table) != 0){
+                $guest_req = 'yes';
+            }else if(count($booking_table) == 0 && count($guest_table) == 0){
+                return response()->json([ 'Status' => 'success', 
                                       'Message' => 'cannot access meeting room',
                                     ], 200);
-        }else{
-            try {
-                $request = $client->post($server. '/api/v1/unlock/'. $request->get($this->room_num),[
-                    'headers' => [
-                        'Authorization' => $user_token,
-                        'Content-Type' => 'application/json',
-                    ],
-                    'body' => json_encode([
-                        'guest_req'=> $guest_req,
-                    ])
-                ]);
-                $response = json_decode($request->getBody()->getContents());
-            } catch (\Exception $ex) {
-                if(($ex->getResponse()->getStatusCode() == 401)){
-                    $m = 'token invalid';
-                }else if(($ex->getResponse()->getStatusCode() == 400)){
-                    $m = 'bad request';
-                }else if(($ex->getResponse()->getStatusCode() == 500)){
-                    $m = 'server error';
-                }else if(($ex->getResponse()->getStatusCode() == 404)){
-                    $m = 'not found';
-                }else{
-                    $m = '';
-                }
-                return response()->json([ 'Status' => 'fail',
-                                          'Message' => $m
-                                        ], $ex->getResponse()->getStatusCode());
             }
-            return response()->json([ 'Status' => 'success', 
-                                          'Message' => 'meeting room accessed',
-                                          'Value' => $response
-                                        ], 200);
         }
+
+        try {
+            $request = $client->post($server. '/api/v1/unlock/'. $request->get($this->room_num),[
+                'headers' => [
+                    'Authorization' => $user_token,
+                    'Content-Type' => 'application/json',
+                ],
+                'body' => json_encode([
+                    'guest_req'=> $guest_req,
+                ])
+            ]);
+            $response = json_decode($request->getBody()->getContents());
+        }catch(\GuzzleHttp\Exception\ConnectException $ex){
+            return response()->json([ 'Status' => 'fail',
+                                        'Message' => 'cannot connect to server'
+                                    ], 500);
+        }catch (\Exception $ex) {
+            if(($ex->getResponse()->getStatusCode() == 401)){
+                $m = 'token invalid';
+            }else if(($ex->getResponse()->getStatusCode() == 400)){
+                $m = 'bad request';
+            }else if(($ex->getResponse()->getStatusCode() == 500)){
+                $m = 'server error';
+            }else if(($ex->getResponse()->getStatusCode() == 404)){
+                $m = 'not found';
+            }else{
+                $m = '';
+            }
+            return response()->json([ 'Status' => 'fail',
+                                        'Message' => $m
+                                    ], $ex->getResponse()->getStatusCode());
+        }
+        return response()->json([ 'Status' => 'success', 
+                                        'Message' => 'meeting room accessed',
+                                        'Value' => $response
+                                    ], 200);
+        
     }
 
 

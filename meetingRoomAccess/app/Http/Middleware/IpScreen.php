@@ -3,10 +3,13 @@
 namespace App\Http\Middleware;
 
 use Closure;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
-class LogRoute
+class IpScreen
 {
+    public $blockIp = [];
+        
     /**
      * Handle an incoming request.
      *
@@ -16,21 +19,18 @@ class LogRoute
      */
     public function handle($request, Closure $next)
     {
-        $response = $next($request);
-
-        if (app()->environment('local')) {
+        if (in_array($request->ip(), $this->blockIp)) {
             $log = [
-                'IP' => request()->ip(),
+                'IP' => request()->ip(). " (BLOCKED)",
                 'URI' => $request->getUri(),
                 'METHOD' => $request->getMethod(),
-                'REQUEST_HEADER_AUTH' => $request->header('Authorization'),
                 'REQUEST_BODY' => $request->all(),
-                'RESPONSE' => $response->getContent()
+                'RESPONSE' => ['Status' => 'fail', 'Message' => 'you dont have permission to access this api']
             ];
-
             Log::info(json_encode($log));
+            return response()->json(['Status' => 'fail', 'Message' => 'you dont have permission to access this api'], 403);
         }
-
-        return $response;
+    
+        return $next($request);
     }
 }
