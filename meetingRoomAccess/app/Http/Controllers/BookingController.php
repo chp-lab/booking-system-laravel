@@ -501,6 +501,7 @@ class BookingController extends Controller
     }
 
     public function test(){
+        $database = \Config::get('app.database');
         $timeNow = Carbon::now();
         $timeNow->tz = new \DateTimeZone('Asia/Bangkok');
         $data[] = [
@@ -513,7 +514,7 @@ class BookingController extends Controller
         ];
         $data[] = [
             "name" => "db host",
-            "value" => env("DB_HOST")
+            "value" => $database,
         ];
         $data[] = [
             "name" => "time when request",
