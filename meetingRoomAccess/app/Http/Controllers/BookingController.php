@@ -520,7 +520,7 @@ class BookingController extends Controller
             "value" => $timeNow->isoFormat('dddd D-MM-YYYY HH:mm:ss')
         ];
         return response()->json(['Status' => 'success',
-                                 'Message' => "this is test api 03/03/2021",
+                                 'Message' => "this is api version 1.2 (03/03/2021)",
                                  'Value' => $data
                                 ],200);
     }
@@ -1476,9 +1476,12 @@ class BookingController extends Controller
     }
 
     public function getProfile($user_token = null){
-        $bot_token = 'Bearer '. env("GET_PROFILE_BOT_TOKEN");
-        $bot_id = env("GET_PROFILE_BOT_ID");
-        $api_path = env("GET_PROFILE_API");
+        // $bot_token = 'Bearer '. env("GET_PROFILE_BOT_TOKEN");
+        // $bot_id = env("GET_PROFILE_BOT_ID");
+        // $api_path = env("GET_PROFILE_API");
+        $bot_token = 'Bearer Af58c5450f3b45c71a97bc51c05373ecefabc49bd2cd94f3c88d5b844813e69a17e26a828c2b64ef889ef0c10e2aee347';
+        $bot_id = 'B75900943c6205ce084d1c5e8850d40f9';
+        $api_path = 'https://chat-api.one.th/manage/api/v1/getprofile';
         $client = new \GuzzleHttp\Client();
 
         try{
@@ -1539,7 +1542,8 @@ class BookingController extends Controller
     }
 
     public function unlock(Request $request, $user_token = null){
-        $server = env("UNLOCK_API");
+        // $server = env("UNLOCK_API");
+        $server = 'http://203.151.164.229:5003';
         $client = new \GuzzleHttp\Client();
 
         if(is_null($request->get($this->room_num)) || is_null($request->get($this->one_email))){
