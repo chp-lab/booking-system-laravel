@@ -31,354 +31,35 @@ class BookingController extends Controller
     public $meeting_start_get;
     public $meeting_end_get;
 
-    
-    public function dev($one_email = null, $select = null, $date = null){   
-        $booking_data_this_month = [];
-        $booking_data_next_month = [];
-        $booking_data_json = [];
-        $timeNow = Carbon::now();
-        $timeNow->tz = new \DateTimeZone('Asia/Bangkok');
+    public function dev($booking_num = null){
+        $guest_available = [];
 
-        if(is_null($one_email)){
-            $this_month_start = Carbon::create($timeNow->year, $timeNow->month, 1, 0, 0, 0, 'Asia/Bangkok');
-            $this_month_end = Carbon::create($timeNow->year, $timeNow->month, 1, 0, 0, 0, 'Asia/Bangkok');
-            $this_month_end->addMonthsNoOverflow(1);
-            $next_month_start = Carbon::create($timeNow->year, $timeNow->month, 1, 0, 0, 0, 'Asia/Bangkok');
-            $next_month_start->addMonthsNoOverflow(1);
-            $next_month_end = Carbon::create($timeNow->year, $timeNow->month, 1, 0, 0, 0, 'Asia/Bangkok');
-            $next_month_end->addMonthsNoOverflow(2);
+        $users = User::all();
+        $booking = Booking::where($this->booking_num, '=', $booking_num)->first();
+        $guests = Guest::where($this->booking_num, '=', $booking_num)->get();
 
-            //this month
-            $bookingTable = Booking::where($this->meeting_time_end, '>', $this_month_start)
-                                    ->where($this->meeting_time_end, '<', $this_month_end)
-                                    ->where($this->eject , '=',  null)
-                                    ->get();
-            foreach($bookingTable as $booking){
-                $guests_arr = array();
-                $guests = Guest::where($this->booking_num , '=', $booking->booking_number)->get();
-                foreach($guests as $g){
-                    array_push($guests_arr, $g->guest_email);
+        $found = false;
+        foreach($users as $u){
+            foreach($guests as $g){
+                if(($u->one_email == $g->guest_email)){
+                    $found = true;
                 }
+            }
+            if($u->one_email == $booking->one_email){
+                $found = true; 
+            }
 
-                if(Carbon::parse($booking->meeting_start)->day < 10){
-                    $day = "0" . Carbon::parse($booking->meeting_start)->day;
-                }else{
-                    $day = "" . Carbon::parse($booking->meeting_start)->day;
-                }
-
-                $booking_data_this_month[] = [
-                    "booking_number" => $booking->booking_number,
-                    "one_email" => $booking->one_email,
-                    "guest_email" => $guests_arr,
-                    "room_num" => $booking->room_num,
-                    "agenda" => $booking->agenda,
-                    "meeting_start" => $booking->meeting_start,
-                    "meeting_start_day" => $day,
-                    "meeting_end" => $booking->meeting_end,
-                    // "created_at" => $booking->created_at,
-                    "eject_at" => $booking->eject_at
+            if(!$found){
+                $guest_available[] = [
+                    "email" => $u->one_email,
+                    "name" => $u->name
                 ];
             }
-
-            //next month
-            $bookingTable = Booking::where($this->meeting_time_end, '>', $next_month_start)
-                                    ->where($this->meeting_time_end, '<', $next_month_end)
-                                    ->where($this->eject , '=',  null)
-                                    ->get();
-            foreach($bookingTable as $booking){
-                $guests_arr = array();
-                $guests = Guest::where($this->booking_num , '=', $booking->booking_number)->get();
-                foreach($guests as $g){
-                    array_push($guests_arr, $g->guest_email);
-                }
-                $booking_data_next_month[] = [
-                    "booking_number" => $booking->booking_number,
-                    "one_email" => $booking->one_email,
-                    "guest_email" => $guests_arr,
-                    "room_num" => $booking->room_num,
-                    "agenda" => $booking->agenda,
-                    "meeting_start" => $booking->meeting_start,
-                    "meeting_start_day" => Carbon::parse($booking->meeting_start)->day,
-                    "meeting_end" => $booking->meeting_end,
-                    // "created_at" => $booking->created_at,
-                    "eject_at" => $booking->eject_at
-                ];
-            }
-
-            $value = [
-                'this_month' => $booking_data_this_month,
-                'next_month' => $booking_data_next_month
-            ];
-
-            return response()->json(['Status' => 'success', 'Message' => '', "Value" => $value], 200);
-        }else{
-            if($select == 'history'){
-                //***** must test *****
-                $bookingTable_notEject = Booking::where($this->one_email , '=', $one_email)
-                                        ->where($this->meeting_time_end, '<', $timeNow)
-                                        ->Where($this->eject , '=',  null)
-                                        ->get();
-                
-                $bookingTable_Eject = Booking::where($this->one_email , '=', $one_email)
-                                        ->Where($this->eject , '!=',  null)
-                                        ->get();
-
-                foreach($bookingTable_notEject as $booking){
-                    $guests_arr = array();
-                    $guests = Guest::where($this->booking_num , '=', $booking->booking_number)->get();
-                    foreach($guests as $g){
-                        array_push($guests_arr, $g->guest_email);
-                    }
-
-                    if(Carbon::parse($booking->meeting_start)->day < 10){
-                        $day = "0" . Carbon::parse($booking->meeting_start)->day;
-                    }else{
-                        $day = "" . Carbon::parse($booking->meeting_start)->day;
-                    }
-    
-                    $booking_data_json[] = [
-                        "booking_number" => $booking->booking_number,
-                        "one_email" => $booking->one_email,
-                        "guest_email" => $guests_arr,
-                        "room_num" => $booking->room_num,
-                        "agenda" => $booking->agenda,
-                        "meeting_start" => $booking->meeting_start,
-                        "meeting_start_day" => $day,
-                        "meeting_end" => $booking->meeting_end,
-                        // "created_at" => $booking->created_at,
-                        "eject_at" => $booking->eject_at,
-                        "guest" => false
-                    ];
-                }
-
-                foreach($bookingTable_Eject as $booking){
-                    $guests_arr = array();
-                    $guests = Guest::where($this->booking_num , '=', $booking->booking_number)->get();
-                    foreach($guests as $g){
-                        array_push($guests_arr, $g->guest_email);
-                    }
-                    $booking_data_json[] = [
-                        "booking_number" => $booking->booking_number,
-                        "one_email" => $booking->one_email,
-                        "guest_email" => $guests_arr,
-                        "room_num" => $booking->room_num,
-                        "agenda" => $booking->agenda,
-                        "meeting_start" => $booking->meeting_start,
-                        "meeting_start_day" => Carbon::parse($booking->meeting_start)->day,
-                        "meeting_end" => $booking->meeting_end,
-                        // "created_at" => $booking->created_at,
-                        "eject_at" => $booking->eject_at,
-                        "guest" => false
-                    ];
-                }
-
-                $guestTable_notEject = Booking::join('guests', 'bookings.booking_number', '=', 'guests.booking_number')
-                        ->where($this->guest_email , '=', $one_email)
-                        ->where($this->meeting_time_end, '<', $timeNow)
-                        ->where($this->eject , '=',  null)
-                        ->get();
-
-                $guestTable_Eject = Booking::join('guests', 'bookings.booking_number', '=', 'guests.booking_number')
-                        ->where($this->guest_email , '=', $one_email)
-                        ->where($this->eject , '!=',  null)
-                        ->get();
-            
-                foreach($guestTable_notEject as $guest){
-                    $guests_arr = array();
-                    $guests = Guest::where($this->booking_num , '=', $guest->booking_number)->get();
-                    foreach($guests as $g){
-                        array_push($guests_arr, $g->guest_email);
-                    }
-                    $booking_data_json[] = [
-                        "booking_number" => $guest->booking_number,
-                        "one_email" => $guest->one_email,
-                        "guest_email" => $guests_arr,
-                        "room_num" => $guest->room_num,
-                        "agenda" => $guest->agenda,
-                        "meeting_start" => $guest->meeting_start,
-                        "meeting_start_day" => Carbon::parse($guest->meeting_start)->day,
-                        "meeting_end" => $guest->meeting_end,
-                        // "created_at" => $guest->created_at,
-                        "eject_at" => $guest->eject_at,
-                        "guest" => true
-                    ];
-                }
-
-                foreach($guestTable_Eject as $guest){
-                    $guests_arr = array();
-                    $guests = Guest::where($this->booking_num , '=', $guest->booking_number)->get();
-                    foreach($guests as $g){
-                        array_push($guests_arr, $g->guest_email);
-                    }
-                    $booking_data_json[] = [
-                        "booking_number" => $guest->booking_number,
-                        "one_email" => $guest->one_email,
-                        "guest_email" => $guests_arr,
-                        "room_num" => $guest->room_num,
-                        "agenda" => $guest->agenda,
-                        "meeting_start" => $guest->meeting_start,
-                        "meeting_start_day" => Carbon::parse($guest->meeting_start)->day,
-                        "meeting_end" => $guest->meeting_end,
-                        // "created_at" => $guest->created_at,
-                        "eject_at" => $guest->eject_at,
-                        "guest" => true
-                    ];
-                }
-                
-                //sort
-                $booking_data_sort_arr = array();
-                $booking_data_sort = collect($booking_data_json)->sortBy("booking_number");
-                foreach($booking_data_sort as $booking_data){
-                    array_push($booking_data_sort_arr, $booking_data);
-                }
-                return response()->json(['Status' => 'success', 'Message' => '', "Value" => $booking_data_sort_arr], 200);
-            }else if($select == 'future'){
-                $bookingTable = Booking::where($this->one_email , '=', $one_email)
-                                    ->where($this->meeting_time_end, '>', $timeNow)
-                                    ->where($this->eject , '=',  null)
-                                    ->get();
-                foreach($bookingTable as $booking){
-                    $guests_arr = array();
-                    $guests = Guest::where($this->booking_num , '=', $booking->booking_number)->get();
-                    foreach($guests as $g){
-                        array_push($guests_arr, $g->guest_email);
-                    }
-
-                    if(Carbon::parse($booking->meeting_start)->day < 10){
-                        $day = "0" . Carbon::parse($booking->meeting_start)->day;
-                    }else{
-                        $day = "" . Carbon::parse($booking->meeting_start)->day;
-                    }
-    
-                    $booking_data_json[] = [
-                        "booking_number" => $booking->booking_number,
-                        "one_email" => $booking->one_email,
-                        "guest_email" => $guests_arr,
-                        "room_num" => $booking->room_num,
-                        "agenda" => $booking->agenda,
-                        "meeting_start" => $booking->meeting_start,
-                        "meeting_start_day" => $day,
-                        "meeting_end" => $booking->meeting_end,
-                        // "created_at" => $booking->created_at,
-                        "eject_at" => $booking->eject_at,
-                        "guest" => false
-                    ];
-                }
-
-                $guestTable = Booking::join('guests', 'bookings.booking_number', '=', 'guests.booking_number')
-                        ->where($this->guest_email , '=', $one_email)
-                        ->where($this->meeting_time_end, '>', $timeNow)
-                        ->where($this->eject , '=',  null)
-                        ->get();
-
-                foreach($guestTable as $guest){
-                    $guests_arr = array();
-                    $guests = Guest::where($this->booking_num , '=', $guest->booking_number)->get();
-                    foreach($guests as $g){
-                        array_push($guests_arr, $g->guest_email);
-                    }
-                    $booking_data_json[] = [
-                        "booking_number" => $guest->booking_number,
-                        "one_email" => $guest->one_email,
-                        "guest_email" => $guests_arr,
-                        "room_num" => $guest->room_num,
-                        "agenda" => $guest->agenda,
-                        "meeting_start" => $guest->meeting_start,
-                        "meeting_start_day" => Carbon::parse($guest->meeting_start)->day,
-                        "meeting_end" => $guest->meeting_end,
-                        // "created_at" => $guest->created_at,
-                        "eject_at" => $guest->eject_at,
-                        "guest" => true
-                    ];
-                }
-
-                //sort
-                $booking_data_sort_arr = array();
-                $booking_data_sort = collect($booking_data_json)->sortBy("booking_number");
-                foreach($booking_data_sort as $booking_data){
-                    array_push($booking_data_sort_arr, $booking_data);
-                }
-
-                return response()->json(['Status' => 'success', 'Message' => '', "Value" => $booking_data_sort_arr], 200);
-                // return response()->json($booking_data_json);
-            }else if($select == 'time'){
-                $start_date = $date . " 00:00:00";
-                $end_date = $date . " 23:59:59";
-                $bookingTable = Booking::where($this->one_email , '=', $one_email)
-                    ->where($this->meeting_time_start, '>=', $start_date)
-                    ->where($this->meeting_time_start, '<=', $end_date)
-                    ->where($this->eject , '=',  null)
-                    ->get();
-
-                foreach($bookingTable as $booking){
-                    $guests_arr = array();
-                    $guests = Guest::where($this->booking_num , '=', $booking->booking_number)->get();
-                    foreach($guests as $g){
-                        array_push($guests_arr, $g->guest_email);
-                    }
-
-                    if(Carbon::parse($booking->meeting_start)->day < 10){
-                        $day = "0" . Carbon::parse($booking->meeting_start)->day;
-                    }else{
-                        $day = "" . Carbon::parse($booking->meeting_start)->day;
-                    }
-    
-                    $booking_data_json[] = [
-                        "booking_number" => $booking->booking_number,
-                        "one_email" => $booking->one_email,
-                        "guest_email" => $guests_arr,
-                        "room_num" => $booking->room_num,
-                        "agenda" => $booking->agenda,
-                        "meeting_start" => $booking->meeting_start,
-                        "meeting_start_day" => $day,
-                        "meeting_end" => $booking->meeting_end,
-                        // "created_at" => $booking->created_at,
-                        "eject_at" => $booking->eject_at,
-                        "guest" => false
-                    ];
-                }
-                
-                $guestTable = Booking::join('guests', 'bookings.booking_number', '=', 'guests.booking_number')
-                        ->where($this->guest_email , '=', $one_email)
-                        ->where($this->meeting_time_start, '>=', $start_date)
-                        ->where($this->meeting_time_start, '<=', $end_date)
-                        ->where($this->eject , '=',  null)
-                        ->get();
-
-                foreach($guestTable as $guest){
-                    $guests_arr = array();
-                    $guests = Guest::where($this->booking_num , '=', "$guest->booking_number")->get();
-                    foreach($guests as $g){
-                        array_push($guests_arr, $g->guest_email);
-                    }
-                    $booking_data_json[] = [
-                        "booking_number" => $guest->booking_number,
-                        "one_email" => $guest->one_email,
-                        "guest_email" => $guests_arr,
-                        "room_num" => $guest->room_num,
-                        "agenda" => $guest->agenda,
-                        "meeting_start" => $guest->meeting_start,
-                        "meeting_start_day" => Carbon::parse($guest->meeting_start)->day,
-                        "meeting_end" => $guest->meeting_end,
-                        // "created_at" => $guest->created_at,
-                        "eject_at" => $guest->eject_at,
-                        "guest" => true
-                    ];
-                }
-
-                //sort
-                $booking_data_sort_arr = array();
-                $booking_data_sort = collect($booking_data_json)->sortBy("booking_number");
-                foreach($booking_data_sort as $booking_data){
-                    array_push($booking_data_sort_arr, $booking_data);
-                }
-                
-                return response()->json(['Status' => 'success', 'Message' => '', "Value" => $booking_data_sort_arr], 200);
-            }else{
-                return response()->json(['Status' => 'fail', 'Message' => 'page not found'], 404);
-            }
-        }    
+            $found = false;
+        }
+        return response()->json(['Status' => 'success', 'Message' => '', 'Value' => $guest_available], 200);
     }
+    
     
     public function availableGuest($booking_num = null){
         $guest_available = [];
@@ -390,10 +71,14 @@ class BookingController extends Controller
         $found = false;
         foreach($users as $u){
             foreach($guests as $g){
-                if(($u->one_email == $g->guest_email) || ($u->one_email == $booking->one_email)){
+                if(($u->one_email == $g->guest_email)){
                     $found = true;
                 }
             }
+            if($u->one_email == $booking->one_email){
+                $found = true; 
+            }
+
             if(!$found){
                 $guest_available[] = [
                     "email" => $u->one_email,
@@ -402,9 +87,7 @@ class BookingController extends Controller
             }
             $found = false;
         }
-
         return response()->json(['Status' => 'success', 'Message' => '', 'Value' => $guest_available], 200);
-        
     }
     
     public function guestManager(Request $request, $select = null){
