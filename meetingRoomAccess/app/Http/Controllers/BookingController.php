@@ -505,7 +505,15 @@ class BookingController extends Controller
         $timeNow = Carbon::now();
         $timeNow->tz = new \DateTimeZone('Asia/Bangkok');
         $data[] = [
-            "name" => "http host name",
+            "name" => "version",
+            "value" => '1.2.1',
+        ];
+        $data[] = [
+            "name" => "last update",
+            "value" => '05/03/2021',
+        ];
+        $data[] = [
+            "name" => "host name",
             "value" => \Request::getHttpHost(),
         ];
         $data[] = [
@@ -521,7 +529,7 @@ class BookingController extends Controller
             "value" => $timeNow->isoFormat('dddd D-MM-YYYY HH:mm:ss')
         ];
         return response()->json(['Status' => 'success',
-                                 'Message' => "this is api version 1.2 (03/03/2021)",
+                                 'Message' => "this is test api",
                                  'Value' => $data
                                 ],200);
     }
@@ -535,6 +543,7 @@ class BookingController extends Controller
         $green = new \DateTime('04:00');
         $red = new \DateTime('10:00');
         $ref = new \DateTime('00:00'); 
+        $status_all = "red";
         $total_month_time = new \DateTime('00:00');
         
         $roomsTable = Room::where($this->main_door, '=', null)->get();
@@ -556,6 +565,7 @@ class BookingController extends Controller
         }
         
         while($start < $end){
+            $status_all = "red";
             foreach($roomsTable as $room){ 
                 $total_day_time = new \DateTime('00:00');
 
@@ -574,20 +584,30 @@ class BookingController extends Controller
                     $total_month_time->add($interval);
                     $tot_time_month[$room->room_num] = $tot_time_month[$room->room_num]->add($interval);
                 }
-
                 $total_compare_time = new \DateTime($ref->diff($total_day_time)->format("%H:%I"));
-                $status_all = "red";
+
+                //set status for each day
                 if($total_compare_time <= $green){
                     $status = 'green';
-                    $status_all = "green";
                 }else if(($total_compare_time > $green) && ($total_compare_time < $red)){
                     $status = 'orange';
-                    $status_all = "green";
                 }else if($total_compare_time >= $red){
                     $status = 'red';
                 }else{
                     $status = 'undefined';
-                    $status_all = "green";
+                }
+                
+                //set status_all
+                if($status_all == "red"){
+                    if($total_compare_time <= $green){
+                        $status_all = "green";
+                    }else if(($total_compare_time > $green) && ($total_compare_time < $red)){
+                        $status_all = "green";
+                    }else if($total_compare_time >= $red){
+                        $status_all = "red";
+                    }else{
+                        $status_all = "green";
+                    }
                 }
                 
                 $time_room_data[] = [

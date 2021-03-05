@@ -25,7 +25,7 @@ class LogRoute
                 'METHOD' => $request->getMethod(),
                 'REQUEST_HEADER_AUTH' => $request->header('Authorization'),
                 'REQUEST_BODY' => $request->all(),
-                'RESPONSE' => $response->getContent()
+                'RESPONSE' => json_decode($response->getContent())
             ];
 
             Log::info(json_encode($log));
