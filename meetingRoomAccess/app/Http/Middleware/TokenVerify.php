@@ -39,6 +39,10 @@ class TokenVerify
                 ])
             ]);
             $response = json_decode($guzzle_request->getBody()->getContents());
+        }catch(\GuzzleHttp\Exception\ConnectException $ex){
+            return response()->json([ 'Status' => 'fail',
+                                        'Message' => 'cannot connect to server'
+                                    ], 500);
         }catch (\Exception $ex) {
             if(($ex->getResponse()->getStatusCode() == 401)){
                 $m = 'token invalid';
