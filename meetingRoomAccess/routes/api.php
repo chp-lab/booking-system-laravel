@@ -21,12 +21,12 @@ Route::middleware('auth:api')->get('/user', function (Request $request) {
 
 Route::group(['middleware' => ['cors', 'ip.screen', 'log.route']], function () {
 
-    // Route::group(['middleware' => ['token.verify']], function () {
+    Route::group(['middleware' => ['token.verify']], function () {
         Route::get('v1/dev/{one_email?}/{select?}/{date?}', 'App\Http\Controllers\BookingController@dev');
 
         Route::post('v1/checkAvailableRoom', 'App\Http\Controllers\BookingController@checkAvailableRoom');
         Route::post('v1/booking', 'App\Http\Controllers\BookingController@booking');
-        Route::get('v1/availableGuest/{booking_number?}', 'App\Http\Controllers\BookingController@availableGuest');
+        Route::get('v1/availableGuest/{booking_number?}/{select?}', 'App\Http\Controllers\BookingController@availableGuest');
         Route::post('v1/guestManager/{select?}', 'App\Http\Controllers\BookingController@guestManager');
         Route::post('v1/unlock/{user_token?}', 'App\Http\Controllers\BookingController@unlock');
         Route::get('v1/ejectBooking/{one_email?}/{booking_number?}', 'App\Http\Controllers\BookingController@ejectBooking');
@@ -37,7 +37,7 @@ Route::group(['middleware' => ['cors', 'ip.screen', 'log.route']], function () {
         Route::get('v1/getProfile/{user_token?}', 'App\Http\Controllers\BookingController@getProfile');
         Route::get('v1/nowMeetingTable/{one_email?}', 'App\Http\Controllers\BookingController@nowMeetingTable');
         Route::get('v1/availableStat/{day?}', 'App\Http\Controllers\BookingController@availableStat');
-    // });
+    });
 
     Route::get('v1/test', 'App\Http\Controllers\BookingController@test');
 
