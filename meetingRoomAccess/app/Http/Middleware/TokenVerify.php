@@ -19,9 +19,12 @@ class TokenVerify
     public function handle(Request $request, Closure $next)
     {   
         $user_token = $request->header('Authorization');
-        $bot_token = 'Bearer '. env("GET_PROFILE_BOT_TOKEN");
-        $bot_id = env("GET_PROFILE_BOT_ID");
-        $api_path = env("GET_PROFILE_API");
+        // $bot_token = 'Bearer '. env("GET_PROFILE_BOT_TOKEN");
+        // $bot_id = env("GET_PROFILE_BOT_ID");
+        // $api_path = env("GET_PROFILE_API");
+        $bot_token = 'Bearer Af58c5450f3b45c71a97bc51c05373ecefabc49bd2cd94f3c88d5b844813e69a17e26a828c2b64ef889ef0c10e2aee347';
+        $bot_id = 'B75900943c6205ce084d1c5e8850d40f9';
+        $api_path = 'https://chat-api.one.th/manage/api/v1/getprofile';
         $client = new \GuzzleHttp\Client();
         try{
             $guzzle_request = $client->post($api_path,[
