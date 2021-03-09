@@ -223,8 +223,8 @@ class BookingController extends Controller
         $time_room_month_data = [];
         $timeNow = Carbon::now();
         $timeNow->tz = new \DateTimeZone('Asia/Bangkok');
-        $green = new \DateTime('04:00');
-        $red = new \DateTime('10:00');
+        $green = new \DateTime('03:00');
+        $red = new \DateTime('06:00');
         $ref = new \DateTime('00:00'); 
         $status_all = "red";
         $total_month_time = new \DateTime('00:00');
