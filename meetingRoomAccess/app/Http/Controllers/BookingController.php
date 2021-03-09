@@ -61,13 +61,15 @@ class BookingController extends Controller
     }
     
     
-    public function availableGuest($booking_num = null){
+    public function availableGuest($booking_num = null, $select = null){
         $guest_available = [];
 
         $users = User::all();
         $booking = Booking::where($this->booking_num, '=', $booking_num)->first();
         $guests = Guest::where($this->booking_num, '=', $booking_num)->get();
-
+        if($booking == null){
+            return response()->json(['Status' => 'success', 'Message' => 'booking number is invalid', 'Value' => ''], 400);
+        }
         $found = false;
         foreach($users as $u){
             foreach($guests as $g){
@@ -80,10 +82,14 @@ class BookingController extends Controller
             }
 
             if(!$found){
-                $guest_available[] = [
-                    "email" => $u->one_email,
-                    "name" => $u->name
-                ];
+                if($select == 'email'){
+                    array_push($guest_available, $u->one_email);
+                }else{
+                    $guest_available[] = [
+                        "email" => $u->one_email,
+                        "name" => $u->name
+                    ]; 
+                }
             }
             $found = false;
         }
