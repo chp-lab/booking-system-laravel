@@ -195,11 +195,11 @@ class BookingController extends Controller
         $timeNow->tz = new \DateTimeZone('Asia/Bangkok');
         $data[] = [
             "name" => "version",
-            "value" => '1.2.1',
+            "value" => '1.2.2',
         ];
         $data[] = [
             "name" => "last update",
-            "value" => '05/03/2021',
+            "value" => '10/03/2021',
         ];
         $data[] = [
             "name" => "host name",
